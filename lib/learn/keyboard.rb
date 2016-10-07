@@ -64,6 +64,8 @@ module ModLearn
           @mode = :escape
         when "a",'A'
           @event = :add
+        when "c",'C'
+          @event = :catagories
         when ' '
           @event = :page_forward
         when "q",'Q', "\u0003", "\u0004"

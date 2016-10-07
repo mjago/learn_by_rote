@@ -1,6 +1,8 @@
 require 'colorize'
 require 'fileutils'
 require 'yaml'
+require 'word_wrap'
+require 'word_wrap/core_ext'
 
 module ModLearn
   class State
@@ -25,7 +27,15 @@ module ModLearn
       @state = :start
       @version = '0.0.1'
       @question_count = 0
+      @catagories = ['cat 1','cat 2','cat 3','cat 4']
+      @db = Database.new
       load_questions
+      @questions = @db.read_questions('bluetooth')
+#      qu.each do |q|
+#        c_puts  q.to_s
+#      end
+#      exit
+
       state
     end
 
@@ -35,8 +45,6 @@ module ModLearn
       qu_dir = QUESTIONS_DIR
       qu = QUESTIONS
       Dir.mkdir learn unless Dir.exist? learn
-      c_puts 'qu_dir ' + qu_dir
-      c_puts 'qu ' + qu
       Dir.mkdir qu_dir unless Dir.exist? qu_dir
       FileUtils.touch QUESTIONS
     end
@@ -54,7 +62,8 @@ module ModLearn
     def do_config
       @config = {}
       @config[:colour] = true
-      @text_colour = :red
+      @text_colour = :blue
+      @text_width = 40
     end
 
     def now
@@ -76,6 +85,8 @@ module ModLearn
           end
           if event == :rehearse
             rehearse
+          elsif event == :catagories
+            list_catagories
           elsif event == :shuffle
             clear
             c_puts "Shuffling!"
@@ -106,14 +117,46 @@ module ModLearn
 
     def load_questions
       create_questions unless File.exist? QUESTIONS
-      @questions = YAML::load_file(QUESTIONS)
-      puts @questions
+      questions = YAML::load_file(QUESTIONS)
+      questions.each_with_index do |x,idx|
+        @db.write_question(idx, x[:qu], x[:ans])
+      end
+
+#      puts @questions
 #      exit
 #      do_configs
     end
 
     def save_questions
       File.open(QUESTIONS, 'w') { |f| f.write @questions.to_yaml}
+    end
+
+    def list_catagories
+      clear
+      @catagories.each_with_index do |cat, idx|
+        c_puts (idx + 1).to_s + ') ' + cat
+      end
+    end
+
+    def catagories
+      @kb.stop
+      @kb = nil
+      loop do
+        clear
+        c_puts "Enter Catagory"
+        qu = $stdin.gets
+        if qu.strip == ''
+          p @questions
+          save_questions
+          break
+        else
+          c_puts "Enter Answer"
+          ans = $stdin.gets
+          @questions << {qu: qu.strip, ans: ans.strip}
+        end
+      end
+      c_puts
+      @kb = Keyboard.new
     end
 
     def add
@@ -135,7 +178,6 @@ module ModLearn
       end
       c_puts
       @kb = Keyboard.new
-      puts 'here'
     end
 
     def state
@@ -186,6 +228,7 @@ module ModLearn
 
 
     def quit code = 0
+      @db.close
       system("stty -raw echo")
       exit code
     end
@@ -200,12 +243,20 @@ module ModLearn
       c_print "\n\r"
     end
 
+    def c_wrap x = '', col = @text_colour
+      wrap = x.wrap(@text_width).split("\n")
+      wrap.each do |wr|
+        c_print wr, col
+        c_print "\n\r"
+      end
+    end
+
     def show_question
-      c_puts @questions[@question_count][:qu]
+      c_wrap @questions[@question_count][:qu]
     end
 
     def show_answer
-      c_puts @questions[@question_count][:ans]
+      c_wrap @questions[@question_count][:ans]
     end
 
     def menu
@@ -213,8 +264,9 @@ module ModLearn
         clear
         c_puts " Learn by Rote (#{@version})"
         c_puts
-        c_puts " Rehearse      - R  ",    @system_colour
+        c_puts " Rehearse      - R ",     @system_colour
         c_puts " Add Qu's      - A ",     @system_colour
+        c_puts " Categories    - C ",     @system_colour
         c_puts " Shuffle Qu's  - S ",     @system_colour
         c_puts " Start         - Return", @system_colour
         c_puts " Start         - Spacebar", @system_colour
