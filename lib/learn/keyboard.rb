@@ -17,6 +17,8 @@ module ModLearn
 
     def reset
       STDIN.flush
+      @mode = :normal
+      @event = :no_event
     end
 
     def ke_events
@@ -66,8 +68,6 @@ module ModLearn
           @event = :add
         when "c",'C'
           @event = :catagories
-        when ' '
-          @event = :page_forward
         when "q",'Q', "\u0003", "\u0004"
           @event = :quit
         when 'p', 'P'
@@ -82,8 +82,24 @@ module ModLearn
           @event = :play
         when 'i', 'I'
           @event = :info
+        when ' '
+          @event = :space
         when '?', 'h'
           @event = :help
+        when '0'
+          puts 'zero'
+          @event = :score_0
+        when '1'
+          puts 'one'
+          @event = :score_1
+        when '2'
+          @event = :score_2
+        when '3'
+          @event = :score_3
+        when '4'
+          @event = :score_4
+        when '5'
+          @event = :score_5
         else
           @event = :no_event
         end

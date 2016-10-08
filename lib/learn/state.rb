@@ -5,6 +5,7 @@ require 'word_wrap'
 require 'word_wrap/core_ext'
 
 module ModLearn
+
   class State
 
     ROOT            = File.expand_path '~/'
@@ -21,29 +22,170 @@ module ModLearn
 
     def initialize
       @kb = Keyboard.new
+      @sm2 = SpacedRepetition::Sm2
       @config = {}
       setup
       do_config
-      @state = :start
+      @state = :menu
       @version = '0.0.1'
       @question_count = 0
-      @catagories = ['cat 1','cat 2','cat 3','cat 4']
       @db = Database.new
-      load_questions
-      @questions = @db.read_questions('bluetooth')
-#      qu.each do |q|
-#        c_puts  q.to_s
-#      end
-#      exit
-
+      @questions = @db.read_questions
+      @catagories = @db.read_catagories
+      @catagory = ''
+      load_some_questions if @questions == []
       state
+    end
+
+    def srs value, interval = nil, easiness_factor = nil
+      return SpacedRepetition::Sm2.new(value) if interval.nil?
+      SpacedRepetition::Sm2.new(value, interval, easiness_factor) unless interval.nil?
+    end
+
+    def mark score
+      if @questions[@question_count][:interval].nil?
+        sm2 = srs score
+      else
+        sm2 = srs(score,
+                  @questions[@question_count][:interval],
+                  @questions[@question_count][:easiness])
+      end
+      p @questions[@question_count]
+      @questions[@question_count][:interval] = sm2.interval
+      @questions[@question_count][:easiness] = sm2.easiness_factor
+      @questions[@question_count][:repetition_date] = sm2.next_repetition_date
+      @db.write_score(@questions[@question_count][:id],
+                      sm2.interval,
+                      sm2.easiness_factor,
+                      sm2.next_repetition_date)
+    end
+
+    def shuffle
+      clear
+      c_puts "Shuffling!"
+      @questions.shuffle!
+      p @questions
+      sleep 1
+    end
+
+    def state
+      loop do
+        if @state == :menu
+          if @catagory == ''
+            @state = :catagories
+          else
+            @question_count = 0
+            menu
+            case key
+            when :auto then @state = :question
+            when :space then @state = :question
+            when :catagories then @state = :catagories
+            when :shuffle then shuffle
+            when :add then @state = :add
+            end
+          end
+
+        elsif @state == :catagories
+          select_catagory
+          @state = :menu
+
+        elsif @state == :question
+          update_rehearse
+          if @questions == []
+            @state = :menu
+          else
+            clear
+            show_question
+            case key
+            when :auto  then @state = :answer
+            when :space then @state = :answer
+            end
+          end
+
+        elsif @state == :answer
+          update_rehearse
+          c_puts
+          c_puts
+          show_answer
+          if @rehearse
+            case key
+            when :auto  then @state = :is_finished
+            when :space  then @state = :is_finished
+            end
+          else
+            @state = :mark
+          end
+
+        elsif @state == :mark
+          val = key
+          puts "val = #{val}"
+          case val
+          when :score_0, :score_1, :score_2, :score_3, :score_4, :score_5
+            puts 'here'
+            puts "mark = #{val.to_s[6..6].to_i}"
+            mark val.to_s[6..6].to_i
+            
+            @state = :is_finished
+          end
+
+        elsif @state == :add
+          add
+          @state = :menu
+
+        elsif @state == :is_finished
+          @question_count += 1
+          if @question_count >= @questions.length
+            @rehearse = nil
+            @state = :quit
+          else
+            @state = :question
+          end
+
+        elsif @state == :quit
+          c_puts
+          c_puts 'all done'
+          sleep 2
+          @kb.reset
+          @state = :menu
+        end
+      end
+    end
+
+    def key
+      loop do
+        event = @kb.read
+        return :auto if (@rehearse && rehearse_timeout)
+        case event
+        when :rehearse then rehearse if @state == :menu
+        when :space then return :space
+        when :catagories then return :catagories
+        when :shuffle then return :shuffle
+        when :add then return :add
+        when :quit then quit
+        when :score_0 then return :score_0
+        when :score_1 then return :score_1
+        when :score_2 then return :score_2
+        when :score_3 then return :score_3
+        when :score_4 then return :score_4
+        when :score_5 then return :score_5
+        else
+          sleep 0.01
+        end
+      end
+    end
+
+    def load_some_questions
+      puts 'here'
+      questions = YAML::load_file(QUESTIONS)
+      questions.each_with_index do |x,idx|
+        @db.write_question(idx, x[:qu], x[:ans])
+      end
     end
 
     def setup
       @start_time = Time.now
       learn = LEARN
       qu_dir = QUESTIONS_DIR
-      qu = QUESTIONS
       Dir.mkdir learn unless Dir.exist? learn
       Dir.mkdir qu_dir unless Dir.exist? qu_dir
       FileUtils.touch QUESTIONS
@@ -76,143 +218,74 @@ module ModLearn
       end
     end
 
-    def wait arg
-      loop do
-        if arg == :key
-          event = @kb.read
-          if @rehearse
-            return if rehearse_timeout
-          end
-          if event == :rehearse
-            rehearse
-          elsif event == :catagories
-            list_catagories
-          elsif event == :shuffle
-            clear
-            c_puts "Shuffling!"
-            @questions.shuffle!
-            sleep 2
-            clear
-            menu
-          elsif event == :add
-            add
-          elsif event == :quit
-            quit
-          elsif event != :no_event
-            return
-          else
-            sleep 0.01
-          end
-        end
+    def update_rehearse
+      if @rehearse
+        @rehearse_timeout = now + @rehearse
       end
     end
 
-    def update_rehearse
-      @rehearse_timeout = now + @rehearse
-    end
-
-    def rehearse interval = 5
+    def rehearse interval = 3
       @rehearse, @rehearse_timeout = interval, now
     end
 
-    def load_questions
-      create_questions unless File.exist? QUESTIONS
-      questions = YAML::load_file(QUESTIONS)
-      questions.each_with_index do |x,idx|
-        @db.write_question(idx, x[:qu], x[:ans])
+    def save_questions questions
+      questions.each do |qu|
+        @db.write_question(@catagory, qu[:qu], qu[:ans])
       end
-
-#      puts @questions
-#      exit
-#      do_configs
-    end
-
-    def save_questions
-      File.open(QUESTIONS, 'w') { |f| f.write @questions.to_yaml}
     end
 
     def list_catagories
       clear
-      @catagories.each_with_index do |cat, idx|
-        c_puts (idx + 1).to_s + ') ' + cat
+      @catagories.each do |cat|
+        c_puts (cat[:id]).to_s + ') ' + cat[:catagory]
       end
     end
 
-    def catagories
-      @kb.stop
-      @kb = nil
-      loop do
-        clear
-        c_puts "Enter Catagory"
-        qu = $stdin.gets
-        if qu.strip == ''
-          p @questions
-          save_questions
-          break
-        else
-          c_puts "Enter Answer"
-          ans = $stdin.gets
-          @questions << {qu: qu.strip, ans: ans.strip}
+    def get_catagory_by_id id
+      @catagories.each do |cat|
+        if cat[:id] == id
+          return cat[:catagory]
         end
       end
-      c_puts
+      ''
+    end
+
+    def select_catagory
+      @kb.stop
+      list_catagories
+      loop do
+        c_puts
+        c_puts "Enter Catagory"
+        qu = $stdin.gets
+        id = qu.strip.to_i
+        @catagory = id
+        @questions = @db.read_questions(@catagory)
+        p @questions
+#        exit
+        c_puts get_catagory_by_id(id)
+        break
+      end
       @kb = Keyboard.new
     end
 
     def add
+      new_questions = []
       @kb.stop
-      @kb = nil
       loop do
         clear
         c_puts "Enter Question"
         qu = $stdin.gets
         if qu.strip == ''
-          p @questions
-          save_questions
+          save_questions new_questions
           break
         else
           c_puts "Enter Answer"
           ans = $stdin.gets
-          @questions << {qu: qu.strip, ans: ans.strip}
+          new_questions << {qu: qu.strip, ans: ans.strip}
         end
       end
       c_puts
       @kb = Keyboard.new
-    end
-
-    def state
-      loop do
-        if @state == :start
-          @question_count = 0
-          menu
-          @state = :question unless wait(:key)
-
-        elsif @state == :question
-          clear
-          show_question
-          @state = :answer unless wait(:key)
-
-        elsif @state == :answer
-          c_puts
-          c_puts
-          show_answer
-          @state = :is_finished unless wait(:key)
-
-        elsif @state == :is_finished
-          @question_count += 1
-          if @question_count >= @questions.length
-            @state = :quit
-          else
-            @state = :question
-          end
-
-        elsif @state == :quit
-          c_puts
-          c_puts 'all done'
-          sleep 2
-          @state = :start
-        end
-      end
     end
 
     def load_menu_maybe
@@ -252,17 +325,21 @@ module ModLearn
     end
 
     def show_question
-      c_wrap @questions[@question_count][:qu]
+      c_wrap @questions[@question_count][:qu] unless @questions == []
     end
 
     def show_answer
-      c_wrap @questions[@question_count][:ans]
+      c_wrap @questions[@question_count][:ans] unless @questions == []
     end
 
     def menu
       unless @menu
         clear
         c_puts " Learn by Rote (#{@version})"
+        c_puts
+        c_print " Catagory - "
+        c_print  get_catagory_by_id(@catagory) unless @catagory == ''
+        c_puts
         c_puts
         c_puts " Rehearse      - R ",     @system_colour
         c_puts " Add Qu's      - A ",     @system_colour
