@@ -87,19 +87,17 @@ module ModLearn
         when '?', 'h'
           @event = :help
         when '0'
-          puts 'zero'
-          @event = :score_0
+          @event = :_0
         when '1'
-          puts 'one'
-          @event = :score_1
+          @event = :_1
         when '2'
-          @event = :score_2
+          @event = :_2
         when '3'
-          @event = :score_3
+          @event = :_3
         when '4'
-          @event = :score_4
+          @event = :_4
         when '5'
-          @event = :score_5
+          @event = :_5
         else
           @event = :no_event
         end
