@@ -37,9 +37,142 @@ module ModLearn
       state
     end
 
+    def key
+      loop do
+        event = @kb.read
+        return :auto if (@rehearse && rehearse_timeout)
+        case event
+        when :rehearse then rehearse if @state == :menu
+        when :quit then quit
+        when :no_event then do_events
+        else
+          return event
+        end
+      end
+    end
+
+    def state
+      loop do
+        self.send @state.to_s + '_state'
+        do_events
+      end
+    end
+
+    def menu_state
+      if @catagory == ''
+        @state = :catagories
+      else
+        @question_count = 0
+        menu
+        case key
+        when :auto       then @state = :question
+        when :space      then @state = :question
+        when :catagories then @state = :catagories
+        when :shuffle    then shuffle
+        when :add        then @state = :add
+        end
+      end
+    end
+
+    def catagories_state
+      select_catagory
+      @state = :menu
+    end
+
+    def question_state
+      update_rehearse
+      if questions_exhausted?
+        @state = :is_finished
+      elsif @questions == []
+        @state = :menu
+      else
+        clear
+        if (@rehearse || check_question_due)
+          show_question
+          case key
+          when :auto  then @state = :answer
+          when :_0, :_1, :_2, :_3, :_4, :_5 then @state = :answer
+          when :space then @state = :answer
+          end
+        end
+      end
+    end
+
+    def answer_state
+      update_rehearse
+      c_puts
+      c_puts
+      if questions_exhausted?
+        @state = :is_finished
+      else
+        show_answer
+        if @rehearse
+          case key
+          when :auto  then @state = :is_finished
+          when :space  then @state = :is_finished
+          end
+        else
+          @state = :mark
+        end
+      end
+    end
+
+    def mark_state
+      val = key
+      case val
+      when :_0, :_1, :_2, :_3, :_4, :_5
+        mark val.to_s[1..1].to_i
+        @state = :is_finished
+      end
+    end
+
+    def add_state
+      add
+      @state = :menu
+    end
+
+    def is_finished_state
+      @question_count += 1
+      if @question_count >= @questions.length
+        @rehearse = nil
+        @state = :end_session
+      else
+        @state = :question
+      end
+    end
+
+    def end_session_state
+      c_puts
+      c_puts 'All Done!'
+      do_events 2
+      @kb.reset
+      @state = :menu
+    end
+
     def srs value, interval = nil, easiness_factor = nil
       return SpacedRepetition::Sm2.new(value) if interval.nil?
       SpacedRepetition::Sm2.new(value, interval, easiness_factor) unless interval.nil?
+    end
+
+    def questions_exhausted?
+      @question_count >= @questions.length
+    end
+
+    def check_question_due
+      return false if questions_exhausted?
+      return true if @questions[@question_count][:next_date].nil?
+      loop do
+        due_date = Date.strptime(@questions[@question_count][:next_date], "%Y-%m-%d")
+        if due_date <= Date.today
+          return true
+        else
+          @question_count += 1
+          if questions_exhausted?
+            break
+          end
+        end
+      end
+      return false
     end
 
     def mark score
@@ -50,135 +183,26 @@ module ModLearn
                   @questions[@question_count][:interval],
                   @questions[@question_count][:easiness])
       end
-      p @questions[@question_count]
       @questions[@question_count][:interval] = sm2.interval
-      @questions[@question_count][:easiness] = sm2.easiness_factor
-      @questions[@question_count][:repetition_date] = sm2.next_repetition_date
+      @questions[@question_count][:easiness] = (sm2.easiness_factor * 100).round / 100.0
+      @questions[@question_count][:next_date] = sm2.next_repetition_date.to_s
       @db.write_score(@questions[@question_count][:id],
-                      sm2.interval,
-                      sm2.easiness_factor,
-                      sm2.next_repetition_date)
+                      @questions[@question_count][:interval],
+                      @questions[@question_count][:easiness],
+                      @questions[@question_count][:next_date])
     end
 
     def shuffle
       clear
       c_puts "Shuffling!"
       @questions.shuffle!
-      p @questions
-      sleep 1
-    end
-
-    def state
-      loop do
-        if @state == :menu
-          if @catagory == ''
-            @state = :catagories
-          else
-            @question_count = 0
-            menu
-            case key
-            when :auto then @state = :question
-            when :space then @state = :question
-            when :catagories then @state = :catagories
-            when :shuffle then shuffle
-            when :add then @state = :add
-            end
-          end
-
-        elsif @state == :catagories
-          select_catagory
-          @state = :menu
-
-        elsif @state == :question
-          update_rehearse
-          if @questions == []
-            @state = :menu
-          else
-            clear
-            show_question
-            case key
-            when :auto  then @state = :answer
-            when :space then @state = :answer
-            end
-          end
-
-        elsif @state == :answer
-          update_rehearse
-          c_puts
-          c_puts
-          show_answer
-          if @rehearse
-            case key
-            when :auto  then @state = :is_finished
-            when :space  then @state = :is_finished
-            end
-          else
-            @state = :mark
-          end
-
-        elsif @state == :mark
-          val = key
-          puts "val = #{val}"
-          case val
-          when :score_0, :score_1, :score_2, :score_3, :score_4, :score_5
-            puts 'here'
-            puts "mark = #{val.to_s[6..6].to_i}"
-            mark val.to_s[6..6].to_i
-            
-            @state = :is_finished
-          end
-
-        elsif @state == :add
-          add
-          @state = :menu
-
-        elsif @state == :is_finished
-          @question_count += 1
-          if @question_count >= @questions.length
-            @rehearse = nil
-            @state = :quit
-          else
-            @state = :question
-          end
-
-        elsif @state == :quit
-          c_puts
-          c_puts 'all done'
-          sleep 2
-          @kb.reset
-          @state = :menu
-        end
-      end
-    end
-
-    def key
-      loop do
-        event = @kb.read
-        return :auto if (@rehearse && rehearse_timeout)
-        case event
-        when :rehearse then rehearse if @state == :menu
-        when :space then return :space
-        when :catagories then return :catagories
-        when :shuffle then return :shuffle
-        when :add then return :add
-        when :quit then quit
-        when :score_0 then return :score_0
-        when :score_1 then return :score_1
-        when :score_2 then return :score_2
-        when :score_3 then return :score_3
-        when :score_4 then return :score_4
-        when :score_5 then return :score_5
-        else
-          sleep 0.01
-        end
-      end
+      do_events 1
     end
 
     def load_some_questions
-      puts 'here'
       questions = YAML::load_file(QUESTIONS)
       questions.each_with_index do |x,idx|
-        @db.write_question(idx, x[:qu], x[:ans])
+        @db.write_question(1, x[:qu], x[:ans])
       end
     end
 
@@ -226,6 +250,7 @@ module ModLearn
 
     def rehearse interval = 3
       @rehearse, @rehearse_timeout = interval, now
+      @question_count = 0
     end
 
     def save_questions questions
@@ -260,8 +285,6 @@ module ModLearn
         id = qu.strip.to_i
         @catagory = id
         @questions = @db.read_questions(@catagory)
-        p @questions
-#        exit
         c_puts get_catagory_by_id(id)
         break
       end
@@ -297,13 +320,6 @@ module ModLearn
 
     def clear
       system 'clear' or system 'cls'
-    end
-
-
-    def quit code = 0
-      @db.close
-      system("stty -raw echo")
-      exit code
     end
 
     def c_print x, col = @text_colour
@@ -353,6 +369,16 @@ module ModLearn
         redraw
         @menu = nil
       end
+    end
+
+    def do_events wait = 0.005
+      sleep wait
+    end
+
+    def quit code = 0
+      @db.close
+      system("stty -raw echo")
+      exit code
     end
   end
 end
