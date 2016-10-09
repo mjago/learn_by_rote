@@ -66,7 +66,7 @@ module ModLearn
         menu
         case key
         when :auto       then @state = :question
-        when :space      then @state = :question
+        when :start      then @state = :question
         when :catagories then @state = :catagories
         when :shuffle    then shuffle
         when :add        then @state = :add

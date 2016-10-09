@@ -78,12 +78,10 @@ module ModLearn
           @event = :rehearse
         when 's', 'S'
           @event = :shuffle
-        when 'x', 'X', "\r"
-          @event = :play
         when 'i', 'I'
           @event = :info
-        when ' '
-          @event = :space
+        when ' ', "\r"
+          @event = :start
         when '?', 'h'
           @event = :help
         when '0'
