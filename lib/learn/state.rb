@@ -249,7 +249,7 @@ module ModLearn
       end
     end
 
-    def rehearse interval = 3
+    def rehearse interval = 6
       @rehearse, @rehearse_timeout = interval, now
       @question_count = 0
     end
