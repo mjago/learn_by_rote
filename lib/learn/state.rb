@@ -65,11 +65,11 @@ module ModLearn
         @question_count = 0
         menu
         case key
-        when :auto       then @state = :question
-        when :start      then @state = :question
-        when :catagories then @state = :catagories
-        when :shuffle    then shuffle
-        when :add        then @state = :add
+        when :auto         then @state = :question
+        when :return_space then @state = :question
+        when :catagories   then @state = :catagories
+        when :shuffle      then shuffle
+        when :add          then @state = :add
         end
       end
     end
@@ -91,7 +91,8 @@ module ModLearn
           show_question
           case key
           when :auto  then @state = :answer
-          when :_0, :_1, :_2, :_3, :_4, :_5 then @state = :answer
+          when :_0, :_1, :_2, :_3, :_4 then @state = :answer
+          when :_5, :return_space      then @state = :answer
           when :space then @state = :answer
           end
         end

@@ -81,7 +81,7 @@ module ModLearn
         when 'i', 'I'
           @event = :info
         when ' ', "\r"
-          @event = :start
+          @event = :return_space
         when '?', 'h'
           @event = :help
         when '0'
