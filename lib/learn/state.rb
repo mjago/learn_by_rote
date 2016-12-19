@@ -109,7 +109,7 @@ module ModLearn
         if @rehearse
           case key
           when :auto  then @state = :is_finished
-          when :space  then @state = :is_finished
+          when :return_space  then @state = :is_finished
           end
         else
           @state = :mark
