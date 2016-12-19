@@ -40,7 +40,7 @@ module ModLearn
     def key
       loop do
         event = @kb.read
-        return :auto if (@rehearse && rehearse_timeout)
+        return :auto if @rehearse && rehearse_timeout
         case event
         when :rehearse then rehearse if @state == :menu
         when :quit then quit
