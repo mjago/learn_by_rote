@@ -1,6 +1,4 @@
 require 'colorize'
-require 'fileutils'
-require 'yaml'
 require 'word_wrap'
 require 'word_wrap/core_ext'
 
@@ -149,7 +147,7 @@ module ModLearn
       @state = :menu
     end
 
-    def srs value, interval = nil, easiness_factor = nil
+    def srs(value, interval = nil, easiness_factor = nil)
       return SpacedRepetition::Sm2.new(value) if interval.nil?
       SpacedRepetition::Sm2.new(value, interval, easiness_factor) unless interval.nil?
     end
@@ -162,6 +160,9 @@ module ModLearn
       return false if questions_exhausted?
       return true if @questions[@question_count][:next_date].nil?
       loop do
+        if @questions[@question_count][:next_date].nil?
+          @questions[@question_count][:next_date] = Date.today.to_s
+        end
         due_date = Date.strptime(@questions[@question_count][:next_date], "%Y-%m-%d")
         if due_date <= Date.today
           return true
@@ -175,7 +176,7 @@ module ModLearn
       return false
     end
 
-    def mark score
+    def mark(score)
       if @questions[@question_count][:interval].nil?
         sm2 = srs score
       else
@@ -248,12 +249,12 @@ module ModLearn
       end
     end
 
-    def rehearse interval = 6
+    def rehearse(interval = 10)
       @rehearse, @rehearse_timeout = interval, now
       @question_count = 0
     end
 
-    def save_questions questions
+    def save_questions(questions)
       questions.each do |qu|
         @db.write_question(@catagory, qu[:qu], qu[:ans])
       end
@@ -266,7 +267,7 @@ module ModLearn
       end
     end
 
-    def get_catagory_by_id id
+    def get_catagory_by_id(id)
       @catagories.each do |cat|
         if cat[:id] == id
           return cat[:catagory]
@@ -322,17 +323,17 @@ module ModLearn
       system 'clear' or system 'cls'
     end
 
-    def c_print x, col = @text_colour
+    def c_print(x, col = @text_colour)
       STDOUT.print x.colorize col if @config[:colour]
       STDOUT.print x          unless @config[:colour]
     end
 
-    def c_puts x = '', col = @text_colour
+    def c_puts(x = '', col = @text_colour)
       c_print x, col
       c_print "\n\r"
     end
 
-    def c_wrap x = '', col = @text_colour
+    def c_wrap(x = '', col = @text_colour)
       wrap = x.wrap(@text_width).split("\n")
       wrap.each do |wr|
         c_print wr, col
@@ -371,11 +372,11 @@ module ModLearn
       end
     end
 
-    def do_events wait = 0.005
+    def do_events(wait = 0.005)
       sleep wait
     end
 
-    def quit code = 0
+    def quit(code = 0)
       @db.close
       system("stty -raw echo")
       exit code
