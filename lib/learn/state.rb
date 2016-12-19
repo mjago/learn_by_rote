@@ -13,12 +13,12 @@ module ModLearn
     LEARN_DIR       = '.learn'
     CONFIG_NAME     = 'config.yml'
     QUESTIONS_NAME  = 'questions.yml'
-    LEARN           = File.join ROOT, LEARN_DIR
-    VERSION         = File.join HERE, '..','..','VERSION'
-    DEFAULT_CONFIG  = File.join HERE, '..','..',CONFIG_NAME
-    CONFIG          = File.join LEARN,CONFIG_NAME
-    QUESTIONS_DIR   = File.join LEARN,'questions'
-    QUESTIONS       = File.join QUESTIONS_DIR,QUESTIONS_NAME
+    LEARN           = File.join(ROOT, LEARN_DIR)
+    VERSION         = File.join(HERE, '..', '..', 'VERSION')
+    DEFAULT_CONFIG  = File.join(HERE, '..', '..', CONFIG_NAME)
+    CONFIG          = File.join(LEARN, CONFIG_NAME)
+    QUESTIONS_DIR   = File.join(LEARN, 'questions')
+    QUESTIONS       = File.join(QUESTIONS_DIR, QUESTIONS_NAME)
 
     def initialize
       @kb = Keyboard.new
