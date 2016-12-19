@@ -53,7 +53,7 @@ module ModLearn
 
     def state
       loop do
-        self.send @state.to_s + '_state'
+        send @state.to_s + '_state'
         do_events
       end
     end
