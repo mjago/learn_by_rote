@@ -93,7 +93,6 @@ module ModLearn
           when :auto  then @state = :answer
           when :_0, :_1, :_2, :_3, :_4 then @state = :answer
           when :_5, :return_space      then @state = :answer
-          when :space then @state = :answer
           end
         end
       end
